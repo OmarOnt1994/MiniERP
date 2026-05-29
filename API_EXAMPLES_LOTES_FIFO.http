@@ -1,0 +1,288 @@
+### 1. REGISTRO DE USUARIO
+POST http://localhost:8000/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "almacen@fabrica.com",
+  "password": "Almacen123!",
+  "full_name": "Gerente de Almacén",
+  "role": "almacen"
+}
+
+### 2. LOGIN
+POST http://localhost:8000/api/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+username=almacen@fabrica.com&password=Almacen123!
+
+# Guardar el access_token para los siguientes requests
+
+### 3. CREAR MATERIAL (MAESTRO)
+POST http://localhost:8000/api/materials
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "codigo": "ACE-001",
+  "nombre": "Acero Inoxidable 304",
+  "descripcion": "Planchas de acero inoxidable para manufactura",
+  "unidad": "kg",
+  "stock_minimo": 100.0,
+  "costo_unitario": 25.50
+}
+
+### 4. CREAR SEGUNDO MATERIAL
+POST http://localhost:8000/api/materials
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "codigo": "PIN-001",
+  "nombre": "Pintura Epoica",
+  "descripcion": "Pintura industrial color rojo",
+  "unidad": "litro",
+  "stock_minimo": 50.0,
+  "costo_unitario": 15.0
+}
+
+### 5. REGISTRAR LOTE DE ACERO (Entrada)
+### Guarda el ID del lote (ej: 1)
+POST http://localhost:8000/api/materials/1/lotes
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "codigo_lote": "ACE-001-L001",
+  "cantidad": 500.0,
+  "fecha_caducidad": "2025-06-12",
+  "ubicacion": "Almacen A-1",
+  "notas": "Compra lote A del proveedor XYZ"
+}
+
+### 6. REGISTRAR SEGUNDO LOTE DE ACERO (Más reciente)
+POST http://localhost:8000/api/materials/1/lotes
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "codigo_lote": "ACE-001-L002",
+  "cantidad": 300.0,
+  "fecha_caducidad": "2025-07-15",
+  "ubicacion": "Almacen A-2",
+  "notas": "Compra lote B del proveedor ABC"
+}
+
+### 7. REGISTRAR LOTE DE PINTURA
+POST http://localhost:8000/api/materials/2/lotes
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "codigo_lote": "PIN-001-L001",
+  "cantidad": 200.0,
+  "fecha_caducidad": "2025-05-31",
+  "ubicacion": "Almacen B-1",
+  "notas": "Pintura rojo brillante"
+}
+
+### 8. VER LOTES DISPONIBLES (FIFO Order)
+### Debe mostrar: ACE-001-L001 primero (más viejo), luego ACE-001-L002
+GET http://localhost:8000/api/materials/1/lotes
+Authorization: Bearer {TOKEN}
+
+### 9. VER RESUMEN DE INVENTARIO
+GET http://localhost:8000/api/materials/1/inventario
+Authorization: Bearer {TOKEN}
+
+### Respuesta incluye:
+### - stock_total: 800 (500 + 300)
+### - cantidad_lotes: 2
+### - proximamente_caduca: 1 (el de PIN-001 caduca pronto)
+### - lotes: array ordenado por FIFO
+
+### 10. VER ALERTAS DE CADUCIDAD GLOBAL
+GET http://localhost:8000/api/materials/lotes/caducidad/alertas
+Authorization: Bearer {TOKEN}
+
+### Muestra lotes próximos a caducar y ya caducados
+
+### 11. CREAR WORK ORDER (Valida lotes disponibles)
+### Necesita: 150 kg de Acero, 50 litros de Pintura
+POST http://localhost:8000/api/work-orders
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "numero_orden": "WO-2024-001",
+  "descripcion": "Producción de piezas de acero pintadas",
+  "cantidad_a_producir": 1000.0,
+  "notas": "Entrega para cliente ABC",
+  "items": [
+    {
+      "material_id": 1,
+      "cantidad_requerida": 150.0
+    },
+    {
+      "material_id": 2,
+      "cantidad_requerida": 50.0
+    }
+  ]
+}
+
+### 12. LISTAR WORK ORDERS
+GET http://localhost:8000/api/work-orders
+Authorization: Bearer {TOKEN}
+
+### 13. VER DETALLE DE WORK ORDER
+GET http://localhost:8000/api/work-orders/1
+Authorization: Bearer {TOKEN}
+
+### 14. SURTIR WORK ORDER (Consume FIFO)
+### Sistema automáticamente:
+### - Obtiene lotes ordenados por fecha_entrada (más viejo primero)
+### - Consume 150 kg de Acero: 
+###   - Lote L001 (500 kg): consume 150 kg → queda 350 kg
+### - Consume 50 L de Pintura:
+###   - Lote PIN-001-L001 (200 L): consume 50 L → queda 150 L
+PUT http://localhost:8000/api/work-orders/1/status
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "status": "surtido"
+}
+
+### 15. VERIFICAR STOCK DESPUÉS DE SURTIR
+### Acero debe tener: 350 (L001) + 300 (L002) = 650 total
+GET http://localhost:8000/api/materials/1/inventario
+Authorization: Bearer {TOKEN}
+
+### 16. REGISTRAR SEGUNDA ENTRADA (Lote más viejo que el primero)
+### Nota: Esta entrada es ANTERIOR en tiempo (para demostrar FIFO)
+### En un caso real, normalmente serían más recientes
+POST http://localhost:8000/api/materials/1/lotes
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "codigo_lote": "ACE-001-L003",
+  "cantidad": 200.0,
+  "fecha_caducidad": "2025-08-20",
+  "ubicacion": "Almacen A-3",
+  "notas": "Compra de emergencia"
+}
+
+### 17. VER LOTES DESPUÉS DE SURTIR
+### L001 debe mostrar 350 kg (tenía 500, se consumieron 150)
+### Orden FIFO: L001 (más viejo) → L002 → L003 (más nuevo)
+GET http://localhost:8000/api/materials/1/lotes
+Authorization: Bearer {TOKEN}
+
+### 18. CAMBIAR WO A "EN PROCESO"
+PUT http://localhost:8000/api/work-orders/1/status
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "status": "en_proceso"
+}
+
+### 19. CAMBIAR WO A "FINALIZADO"
+PUT http://localhost:8000/api/work-orders/1/status
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "status": "finalizado"
+}
+
+### 20. REGISTRAR PRODUCTO TERMINADO
+POST http://localhost:8000/api/finished-products
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "codigo": "PROD-2024-001",
+  "nombre": "Piezas de Acero Pintadas",
+  "descripcion": "Lote WO-2024-001 completado",
+  "cantidad_producida": 1000.0,
+  "costo_total": 4500.0,
+  "work_order_id": 1
+}
+
+### 21. VER PRODUCTOS TERMINADOS
+GET http://localhost:8000/api/finished-products
+Authorization: Bearer {TOKEN}
+
+### 22. ACTUALIZAR LOTE (Cambiar ubicación, cantidad, etc.)
+PUT http://localhost:8000/api/materials/1/lotes/1
+Content-Type: application/json
+Authorization: Bearer {TOKEN}
+
+{
+  "cantidad": 340.0,
+  "ubicacion": "Almacen A-1-B",
+  "notas": "Movido a ubicación secundaria"
+}
+
+### 23. ELIMINAR LOTE (Usar con cuidado)
+DELETE http://localhost:8000/api/materials/1/lotes/3
+Authorization: Bearer {TOKEN}
+
+---
+
+## DEMOSTRACIÓN DE FIFO
+
+Escenario:
+- Registras 3 lotes de Acero con estas cantidades:
+  - L001: 100 kg (entrada: 2024-01-01)
+  - L002: 100 kg (entrada: 2024-01-10)
+  - L003: 100 kg (entrada: 2024-01-20)
+- Total stock: 300 kg
+
+Creas Work Order que necesita 220 kg:
+1. Sistema obtiene lotes ordenados por fecha (ASC): [L001, L002, L003]
+2. Consume de L001: 100 kg → L001 queda con 0 kg
+3. Consume de L002: 100 kg → L002 queda con 0 kg
+4. Consume de L003: 20 kg → L003 queda con 80 kg
+5. ✅ Total consumido: 220 kg usando FIFO
+6. Stock restante: 80 kg (solo L003)
+
+Si creas otra WO de 100 kg:
+1. Sistema consume de L003 (único con stock): 80 kg
+2. Pero necesita 100 kg → Error: "Stock insuficiente"
+3. No puedes crear WO sin suficiente stock
+
+---
+
+## ALERTAS DE CADUCIDAD
+
+Endpoint: GET /api/materials/lotes/caducidad/alertas
+
+Respuesta ejemplo:
+{
+  "proximos_a_caducar": [
+    {
+      "lote": "PIN-001-L001",
+      "material": "Pintura Epoica",
+      "cantidad": 150.0,
+      "fecha_caducidad": "2025-05-31",
+      "dias_para_caducar": 19  ← ⚠️ Menos de 30 días
+    }
+  ],
+  "ya_caducados": []
+}
+
+Acción: Usar este lote primero en próximas WO para evitar desperdicio.
+
+---
+
+## SWAGGER INTERACTIVO
+
+http://localhost:8000/docs
+
+Aquí puedes:
+- Probar todos los endpoints visualmente
+- Ver esquema completo de request/response
+- Autorizar con JWT token
+- Descargar especificación OpenAPI

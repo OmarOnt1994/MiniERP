@@ -1,0 +1,211 @@
+# Ejemplos de uso de la API ERP Mini
+# Usa las siguientes peticiones en Postman, Thunder Client o similar
+
+### 1. REGISTRO DE USUARIO
+POST http://localhost:8000/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@fabrica.com",
+  "password": "Admin123!",
+  "full_name": "Administrador",
+  "role": "admin"
+}
+
+### 2. LOGIN
+POST http://localhost:8000/api/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+username=admin@fabrica.com&password=Admin123!
+
+# Respuesta esperada (guarda el access_token):
+# {
+#   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+#   "token_type": "bearer"
+# }
+
+### 3. CREAR MATERIAL
+POST http://localhost:8000/api/materials
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "codigo": "ACERO-001",
+  "nombre": "Acero Inoxidable 304",
+  "descripcion": "Planchas de acero inoxidable",
+  "unidad": "kg",
+  "stock_minimo": 100.0,
+  "costo_unitario": 25.50,
+  "ubicacion": "Almacen A-1"
+}
+
+### 4. ENTRADA DE MATERIAL (Aumento de stock)
+POST http://localhost:8000/api/materials/1/entrada
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "cantidad": 500.0,
+  "tipo": "entrada",
+  "razon": "Compra a proveedor XYZ del 2024-01-15"
+}
+
+### 5. CREAR SEGUNDO MATERIAL
+POST http://localhost:8000/api/materials
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "codigo": "PINTURA-001",
+  "nombre": "Pintura Epoica",
+  "descripcion": "Pintura epoica para metal",
+  "unidad": "litro",
+  "stock_minimo": 50.0,
+  "costo_unitario": 15.0,
+  "ubicacion": "Almacen B-2"
+}
+
+### 6. ENTRADA DE PINTURA
+POST http://localhost:8000/api/materials/2/entrada
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "cantidad": 200.0,
+  "tipo": "entrada",
+  "razon": "Compra lote mensual"
+}
+
+### 7. CREAR WORK ORDER (VALIDA STOCK)
+POST http://localhost:8000/api/work-orders
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "numero_orden": "WO-2024-001",
+  "descripcion": "Producción de piezas de acero pintura",
+  "cantidad_a_producir": 1000.0,
+  "notas": "Entregar antes del 20/01/2024",
+  "items": [
+    {
+      "material_id": 1,
+      "cantidad_requerida": 100.0
+    },
+    {
+      "material_id": 2,
+      "cantidad_requerida": 50.0
+    }
+  ]
+}
+
+### 8. LISTAR WORK ORDERS
+GET http://localhost:8000/api/work-orders
+Authorization: Bearer {tu_access_token}
+
+### 9. OBTENER DETALLE WO
+GET http://localhost:8000/api/work-orders/1
+Authorization: Bearer {tu_access_token}
+
+### 10. CAMBIAR WO A "SURTIDO" (Descuenta stock automáticamente)
+PUT http://localhost:8000/api/work-orders/1/status
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "status": "surtido"
+}
+
+### 11. VERIFICAR STOCK ACTUALIZADO
+GET http://localhost:8000/api/materials/1
+Authorization: Bearer {tu_access_token}
+
+# Debe mostrar: stock_actual = 400.0 (500 - 100 descontado)
+
+### 12. CAMBIAR WO A "EN_PROCESO"
+PUT http://localhost:8000/api/work-orders/1/status
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "status": "en_proceso"
+}
+
+### 13. CAMBIAR WO A "FINALIZADO"
+PUT http://localhost:8000/api/work-orders/1/status
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "status": "finalizado"
+}
+
+### 14. REGISTRAR PRODUCTO TERMINADO
+POST http://localhost:8000/api/finished-products
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "codigo": "PROD-2024-001",
+  "nombre": "Piezas de Acero con Pintura",
+  "descripcion": "Lote completo WO-2024-001",
+  "cantidad_producida": 1000.0,
+  "costo_total": 3500.0,
+  "work_order_id": 1
+}
+
+### 15. LISTAR PRODUCTOS TERMINADOS
+GET http://localhost:8000/api/finished-products
+Authorization: Bearer {tu_access_token}
+
+### 16. OBTENER PRODUCTO TERMINADO
+GET http://localhost:8000/api/finished-products/1
+Authorization: Bearer {tu_access_token}
+
+### 17. SALIDA DE MATERIAL (Venta o despacho)
+POST http://localhost:8000/api/materials/1/salida
+Content-Type: application/json
+Authorization: Bearer {tu_access_token}
+
+{
+  "cantidad": 50.0,
+  "tipo": "salida",
+  "razon": "Venta a cliente ABC"
+}
+
+## FLUJO COMPLETO RESUMIDO
+
+1. ✅ Crear usuario y obtener token
+2. ✅ Crear materiales y registrar entrada
+3. ✅ Crear Work Order (valida stock)
+4. ✅ Cambiar a "surtido" (descuenta stock automáticamente)
+5. ✅ Cambiar a "en_proceso"
+6. ✅ Cambiar a "finalizado"
+7. ✅ Registrar producto terminado
+8. ✅ Registrar salida de materiales si es necesario
+
+## VALIDACIONES IMPORTANTES
+
+⚠️ Al crear WO:
+- Material debe existir
+- Stock actual >= cantidad requerida
+
+⚠️ Al cambiar a "surtido":
+- Stock se descuenta automáticamente
+- No puede haber stock insuficiente al momento
+
+⚠️ Al registrar producto terminado:
+- Work Order debe estar en status "finalizado"
+
+## ERRORES COMUNES
+
+❌ "Material con ID X no existe" → Crea el material primero
+❌ "Stock insuficiente para material Y" → Registra entrada de material
+❌ "Se requiere estar en status 'finalizado'" → Cambia WO a finalizado antes
+❌ "No se pudieron validar las credenciales" → Token JWT inválido o expirado
+
+## SWAGGER INTERACTIVO
+
+Accede a:
+http://localhost:8000/docs
+
+Aquí puedes probar todos los endpoints visualmente
