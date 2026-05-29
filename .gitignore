@@ -1,0 +1,24 @@
+# Python
+.venv/
+venv/
+.venv312/
+__pycache__/
+*.pyc
+.env
+
+# Node
+node_modules/
+frontend/node_modules/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
