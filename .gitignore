@@ -11,6 +11,8 @@ node_modules/
 frontend/node_modules/
 dist/
 build/
+/.vite/
+frontend/dist/
 
 # IDE
 .vscode/
